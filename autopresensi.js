@@ -251,16 +251,17 @@ async function setAbsen(user, pOrS) {
 
             const btnMasuk = page.getByRole('button', { name: 'Presensi masuk' });
             //cuma untuk pengecekan
-            const btnPulang = page.getByRole('button', { name: 'Presensi pulang' });
-            try {
-                await btnPulang.waitFor({ state: 'attached', timeout: 30000 });
-                console.log(`${user.envKey}: Tombol Presensi pulang ditemukan, melanjutkan absen...`);
-                // lanjut klik, dll
-            } catch (e) {
-                console.log(`${user.envKey}: Tombol Presensi pulang tidak ditemukan, mungkin sudah absen.`);
-                await browser.close();
-                return;
-            }
+            // Log semua button yang ada di halaman
+            const buttons = await page.$$eval('button', btns => 
+                btns.map(btn => ({
+                    text: btn.innerText.trim(),
+                    class: btn.className,
+                    hidden: btn.hidden,
+                    disabled: btn.disabled,
+                    visible: btn.offsetParent !== null
+                }))
+            );
+            console.log(`${user.envKey}: Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
             //end pengecekan
             if (await btnMasuk.count() === 0) {
                 console.log(`${user.envKey}: Tombol Presensi masuk tidak ditemukan, mungkin sudah absen.`);
