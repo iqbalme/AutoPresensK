@@ -244,25 +244,24 @@ async function setAbsen(user, pOrS) {
             throw new Error(`Gagal membuka halaman presensi: ${e.message}`);
         }
         console.log(`${user.envKey}: Halaman presensi berhasil dibuka.`);
-
+        //pengecekan tombol yang ditemukan, untuk memastikan tidak terjadi perubahan pada halaman presensi yang menyebabkan tombol tidak bisa ditemukan
+        // Log semua button yang ada di halaman
+        const buttons = await page.$$eval('button', btns => 
+            btns.map(btn => ({
+                text: btn.innerText.trim(),
+                class: btn.className,
+                hidden: btn.hidden,
+                disabled: btn.disabled,
+                visible: btn.offsetParent !== null
+            }))
+        );
+        console.log(`${user.envKey}: Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
+        //end pengecekan
         if (pOrS === 'pagi') {
             await page.waitForTimeout(2000);
             await page.waitForLoadState('load');
 
             const btnMasuk = page.getByRole('button', { name: 'Presensi masuk' });
-            //cuma untuk pengecekan
-            // Log semua button yang ada di halaman
-            const buttons = await page.$$eval('button', btns => 
-                btns.map(btn => ({
-                    text: btn.innerText.trim(),
-                    class: btn.className,
-                    hidden: btn.hidden,
-                    disabled: btn.disabled,
-                    visible: btn.offsetParent !== null
-                }))
-            );
-            console.log(`${user.envKey}: Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
-            //end pengecekan
             if (await btnMasuk.count() === 0) {
                 console.log(`${user.envKey}: Tombol Presensi masuk tidak ditemukan, mungkin sudah absen.`);
                 await browser.close();
@@ -346,7 +345,7 @@ async function executeData() {
     if (dataStore.hari === today && !dataLibur.includes(today) && !isSunday) {
         for (const user of dataStore.users) {
             // Presensi pagi: 06:00 - 06:59
-            if (now >= "06:00" && now < "07:59") {
+            if (now >= "06:00" && now < "06:59") {
                 if (user.pagi === 0 && now >= user.jam_pagi) {
                     console.log(`[pagi] Absen untuk ${user.envKey}`);
                     await setAbsen(user, "pagi");
