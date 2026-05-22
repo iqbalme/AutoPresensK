@@ -1,0 +1,61 @@
+name: Auto Presensi
+
+on:
+  schedule:
+    # Semua waktu dalam UTC (WITA = UTC+8, jadi kurangi 8 jam)
+    # Cron jalan tiap hari, pengecekan hari libur & Minggu ditangani oleh script
+    - cron: '*/30 17-21 * * *' # 01:00-05:59 WITA tiap 30 menit - reset hari baru
+    - cron: '* 22 * * *'       # 06:00-06:59 WITA tiap menit    - presensi pagi
+    - cron: '* 6-11 * * *'     # 14:00-19:59 WITA tiap menit    - presensi sore
+    - cron: '0 12 * * *'       # 20:00 WITA                     - presensi sore akhir
+  workflow_dispatch: # Bisa dijalankan manual dari tab Actions
+
+jobs:
+  presensi:
+    runs-on: ubuntu-latest
+    # Izinkan workflow untuk commit balik ke repo
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright & Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Jalankan Auto Presensi
+        run: node autopresensi.js
+        env:
+          BASE_LATITUDE: ${{ secrets.BASE_LATITUDE }}
+          BASE_LONGITUDE: ${{ secrets.BASE_LONGITUDE }}
+          RADIUS: ${{ secrets.RADIUS }}
+          # Format secret: "username|password"
+          USER1: ${{ secrets.USER1 }}
+          USER2: ${{ secrets.USER2 }}
+          
+      - name: Simpan perubahan data.json ke repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git diff --staged --quiet || git commit -m "chore: update data presensi [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

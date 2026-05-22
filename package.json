@@ -1,0 +1,13 @@
+{
+  "name": "auto-presensi",
+  "version": "1.0.0",
+  "description": "Auto presensi pusaka kemenag",
+  "main": "autopresensi.js",
+  "scripts": {
+    "start": "node autopresensi.js"
+  },
+  "dependencies": {
+    "moment-timezone": "^0.5.45",
+    "playwright": "^1.44.0"
+  }
+}
