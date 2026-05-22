@@ -6,11 +6,6 @@ const { generateRandomCoordinates } = require('./randomCoordinate');
 const fs = require('fs');
 const moment = require('moment-timezone');
 
-// --- Koordinat Patokan ---
-const baseLatitude  = parseFloat(process.env.BASE_LATITUDE);
-const baseLongitude = parseFloat(process.env.BASE_LONGITUDE);
-const radius        = parseFloat(process.env.RADIUS); // meter
-
 // --- Helpers Waktu ---
 function getServerTimeInGMT8() {
     return moment().tz("Asia/Makassar").format('HH:mm');
@@ -18,6 +13,39 @@ function getServerTimeInGMT8() {
 
 function getServerDateInGMT8() {
     return moment().tz("Asia/Makassar").format('YYYY-MM-DD');
+}
+
+// --- Validasi Environment Variables ---
+function parseEnvFloat(key) {
+    const val = process.env[key];
+    if (!val) {
+        throw new Error(`Environment variable "${key}" tidak ditemukan. Pastikan sudah diisi di GitHub Secrets.`);
+    }
+    const parsed = parseFloat(val);
+    if (isNaN(parsed)) {
+        throw new Error(`Environment variable "${key}" bukan angka valid: "${val}"`);
+    }
+    return parsed;
+}
+
+function parseEnvString(key) {
+    const val = process.env[key];
+    if (!val) {
+        throw new Error(`Environment variable "${key}" tidak ditemukan. Pastikan sudah diisi di GitHub Secrets.`);
+    }
+    return val;
+}
+
+// --- Koordinat Patokan ---
+let baseLatitude, baseLongitude, radius, endpointPresensi;
+try {
+    baseLatitude     = parseEnvFloat('BASE_LATITUDE');
+    baseLongitude    = parseEnvFloat('BASE_LONGITUDE');
+    radius           = parseEnvFloat('RADIUS');
+    endpointPresensi = parseEnvString('ENDPOINT_PRESENSI');
+} catch (err) {
+    console.error(`[FATAL] ${err.message}`);
+    process.exit(1);
 }
 
 // --- Daftar User ---
@@ -192,7 +220,7 @@ async function setAbsen(user, pOrS) {
 
         // Buka halaman login -- jika endpoint tidak bisa diakses, langsung throw
         try {
-            await page.goto(`${process.env.ENDPOINT_PRESENSI}/login`, { waitUntil: 'networkidle', timeout: 30000 });
+            await page.goto(`${endpointPresensi}/login`, { waitUntil: 'networkidle', timeout: 30000 });
         } catch (e) {
             throw new Error(`Endpoint tidak bisa diakses: ${e.message}`);
         }
@@ -210,7 +238,7 @@ async function setAbsen(user, pOrS) {
 
         // Buka halaman presensi
         try {
-            await page.goto(`${process.env.ENDPOINT_PRESENSI}/profile/presence`, { waitUntil: 'networkidle', timeout: 30000 });
+            await page.goto(`${endpointPresensi}/profile/presence`, { waitUntil: 'networkidle', timeout: 30000 });
         } catch (e) {
             throw new Error(`Gagal membuka halaman presensi: ${e.message}`);
         }
@@ -283,7 +311,7 @@ async function executeData() {
         ? JSON.parse(fs.readFileSync('libur.json', 'utf8'))
         : [];
 
-    console.log(`[executeData] Waktu WIB: ${now} | Tanggal: ${today}`);
+    console.log(`[executeData] Waktu WITA: ${now} | Tanggal: ${today}`);
 
     // Reset semua user jika hari sudah berganti (1 operasi untuk semua user)
     if (dataStore.hari < today && now >= "01:00" && now < "06:00") {
@@ -306,14 +334,14 @@ async function executeData() {
             if (now >= "06:00" && now < "06:59") {
                 if (user.pagi === 0 && now >= user.jam_pagi) {
                     console.log(`[pagi] Absen untuk ${user.envKey}`);
-                    await setAbsen(user, "pagi"); // jika throw, langsung exit via .catch di bawah
+                    await setAbsen(user, "pagi");
                 }
             }
-            // Presensi sore: 14:01 - 20:00
+            // Presensi sore: 14:30 - 20:00
             else if (now >= "14:30" && now < "20:00") {
                 if (user.sore === 0 && now >= user.jam_sore) {
                     console.log(`[sore] Absen untuk ${user.envKey}`);
-                    await setAbsen(user, "sore"); // jika throw, langsung exit via .catch di bawah
+                    await setAbsen(user, "sore");
                 }
             }
         }
