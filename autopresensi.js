@@ -235,6 +235,7 @@ async function setAbsen(user, pOrS) {
         if (page.url().includes('/login')) {
             throw new Error(`Login gagal untuk ${user.envKey}. Periksa username/password di secret.`);
         }
+        console.log(`${user.envKey}: Login berhasil.`);
 
         // Buka halaman presensi
         try {
@@ -242,6 +243,7 @@ async function setAbsen(user, pOrS) {
         } catch (e) {
             throw new Error(`Gagal membuka halaman presensi: ${e.message}`);
         }
+        console.log(`${user.envKey}: Halaman presensi berhasil dibuka.`);
 
         if (pOrS === 'pagi') {
             await page.waitForTimeout(2000);
