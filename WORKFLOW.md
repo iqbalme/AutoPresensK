@@ -76,13 +76,14 @@ repo/
 
 ## Jadwal Cron
 
-Semua waktu di GitHub Actions menggunakan **UTC**. WIB = UTC+7, jadi dikurangi 7 jam.
+Semua waktu di GitHub Actions menggunakan **UTC**. WITA = UTC+8, jadi dikurangi 8 jam.
 
-| Cron Expression      | Waktu WIB           | Tujuan                        |
-|----------------------|---------------------|-------------------------------|
-| `50 22 * * 0-5`      | 05:50 (Min-Sabtu)   | Trigger reset hari baru       |
-| `*/5 23 * * 0-4`     | 06:00–06:59 (Sen-Jum) | Presensi pagi (tiap 5 menit) |
-| `*/5 7-13 * * 1-5`   | 14:00–20:00 (Sen-Jum) | Presensi sore (tiap 5 menit) |
+    Semua waktu dalam UTC (WITA = UTC+8, jadi kurangi 8 jam)
+    Cron jalan tiap hari, pengecekan hari libur & Minggu ditangani oleh script
+    - cron: '*/30 17-21 * * *' # 01:00-05:59 WITA tiap 30 menit - reset hari baru
+    - cron: '* 22 * * *'       # 06:00-06:59 WITA tiap menit    - presensi pagi
+    - cron: '* 6-11 * * *'     # 14:00-19:59 WITA tiap menit    - presensi sore
+    - cron: '0 12 * * *'       # 20:00 WITA                     - presensi sore akhir
 
 > GitHub Actions tidak menjamin waktu eksekusi tepat. Bisa terlambat 1–5 menit, terutama saat load tinggi. Itulah mengapa script punya `jam_pagi` dan `jam_sore` acak — presensi tetap wajar meski ada keterlambatan ringan.
 
