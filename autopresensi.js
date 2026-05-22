@@ -251,13 +251,9 @@ async function setAbsen(user, pOrS) {
 
             const btnMasuk = page.getByRole('button', { name: 'Presensi masuk' });
             //cuma untuk pengecekan
-            await page.waitForSelector('button:has-text("Presensi pulang")', { 
-                state: 'visible', 
-                timeout: 30000 
-            });
             const btnPulang = page.getByRole('button', { name: 'Presensi pulang' });
             try {
-                await btnPulang.waitFor({ state: 'visible', timeout: 30000 });
+                await btnPulang.waitFor({ state: 'attached', timeout: 30000 });
                 console.log(`${user.envKey}: Tombol Presensi pulang ditemukan, melanjutkan absen...`);
                 // lanjut klik, dll
             } catch (e) {
