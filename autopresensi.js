@@ -333,7 +333,7 @@ async function executeData() {
     if (dataStore.hari === today && !dataLibur.includes(today) && !isSunday) {
         for (const user of dataStore.users) {
             // Presensi pagi: 06:00 - 06:59
-            if (now >= "06:00" && now < "06:59") {
+            if (now >= "06:00" && now < "07:59") {
                 if (user.pagi === 0 && now >= user.jam_pagi) {
                     console.log(`[pagi] Absen untuk ${user.envKey}`);
                     await setAbsen(user, "pagi");
