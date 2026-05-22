@@ -192,7 +192,7 @@ async function setAbsen(user, pOrS) {
 
         // Buka halaman login -- jika endpoint tidak bisa diakses, langsung throw
         try {
-            await page.goto('https://pusaka-v3.kemenag.go.id/login', { waitUntil: 'networkidle', timeout: 30000 });
+            await page.goto(`${process.env.ENDPOINT_PRESENSI}/login`, { waitUntil: 'networkidle', timeout: 30000 });
         } catch (e) {
             throw new Error(`Endpoint tidak bisa diakses: ${e.message}`);
         }
@@ -210,7 +210,7 @@ async function setAbsen(user, pOrS) {
 
         // Buka halaman presensi
         try {
-            await page.goto('https://pusaka-v3.kemenag.go.id/profile/presence', { waitUntil: 'networkidle', timeout: 30000 });
+            await page.goto(`${process.env.ENDPOINT_PRESENSI}/profile/presence`, { waitUntil: 'networkidle', timeout: 30000 });
         } catch (e) {
             throw new Error(`Gagal membuka halaman presensi: ${e.message}`);
         }

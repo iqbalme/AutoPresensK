@@ -46,6 +46,7 @@ jobs:
           BASE_LATITUDE: ${{ secrets.BASE_LATITUDE }}
           BASE_LONGITUDE: ${{ secrets.BASE_LONGITUDE }}
           RADIUS: ${{ secrets.RADIUS }}
+          ENDPOINT_PRESENSI: ${{ secrets.ENDPOINT_PRESENSI }}
           # Format secret: "username|password"
           USER1: ${{ secrets.USER1 }}
           USER2: ${{ secrets.USER2 }}
