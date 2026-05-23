@@ -52,7 +52,7 @@ try {
 // Set TEST_MODE = true untuk menampilkan list tombol di halaman presensi
 // tanpa mengeksekusi presensi pagi/sore
 // Set TEST_USER = envKey user yang digunakan untuk test (harus ada di ENV_KEYS & Secrets)
-const TEST_MODE = true;
+const TEST_MODE = false;
 const TEST_USER = 'USER1';
 
 // --- Daftar User ---
