@@ -263,7 +263,7 @@ async function setAbsen(user, pOrS) {
                 visible : btn.offsetParent !== null
             }))
         );
-        console.log(`[TEST MODE] Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
+        console.log(`Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
 
         if (pOrS === 'pagi') {
             await page.waitForTimeout(2000);
