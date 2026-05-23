@@ -252,6 +252,19 @@ async function setAbsen(user, pOrS) {
         }
         console.log(`${user.envKey}: Halaman presensi berhasil dibuka.`);
 
+        // Ambil semua tombol di halaman
+        await page.waitForTimeout(2000);
+        const buttons = await page.$$eval('button', btns =>
+            btns.map(btn => ({
+                text    : btn.innerText.trim(),
+                class   : btn.className,
+                hidden  : btn.hidden,
+                disabled: btn.disabled,
+                visible : btn.offsetParent !== null
+            }))
+        );
+        console.log(`[TEST MODE] Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
+
         if (pOrS === 'pagi') {
             await page.waitForTimeout(2000);
             await page.waitForLoadState('load');
