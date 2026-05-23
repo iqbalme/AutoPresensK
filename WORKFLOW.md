@@ -2,7 +2,7 @@
 
 ## Gambaran Umum
 
-Project ini menjalankan script presensi otomatis menggunakan **GitHub Actions** sebagai scheduler dan **Playwright** sebagai browser automation. Tidak memerlukan server atau VPS — semua berjalan di atas infrastruktur GitHub secara gratis.
+Project ini menjalankan script presensi otomatis menggunakan **GitHub Actions** sebagai eksekutor dan **Playwright** sebagai browser automation. Penjadwalan dilakukan oleh **cron-job.org** yang men-trigger GitHub Actions setiap 5 menit via API. Tidak memerlukan server atau VPS.
 
 ---
 
@@ -12,7 +12,7 @@ Project ini menjalankan script presensi otomatis menggunakan **GitHub Actions** 
 repo/
 ├── .github/
 │   └── workflows/
-│       └── presensi.yml       # Konfigurasi penjadwalan & alur GitHub Actions
+│       └── presensi.yml       # Konfigurasi GitHub Actions (trigger: workflow_dispatch)
 ├── autopresensi.js            # Script utama
 ├── randomCoordinate.js        # Helper generate koordinat acak
 ├── data.json                  # State presensi (di-commit otomatis tiap run)
@@ -27,12 +27,13 @@ repo/
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   GitHub Cron Trigger                │
-│  (setiap 5 menit pada jam presensi pagi & sore WIB)  │
+│                   cron-job.org                       │
+│  (trigger setiap 5 menit via GitHub API)             │
 └─────────────────────┬───────────────────────────────┘
-                      │
+                      │  POST /dispatches
                       ▼
 ┌─────────────────────────────────────────────────────┐
+│              GitHub Actions (workflow_dispatch)       │
 │              Checkout Repo (ambil data.json terbaru) │
 └─────────────────────┬───────────────────────────────┘
                       │
@@ -46,20 +47,22 @@ repo/
 ┌─────────────────────────────────────────────────────┐
 │              Jalankan autopresensi.js                │
 │                                                      │
-│  1. Sinkronisasi data.json dengan ENV_KEYS           │
+│  1. Validasi env variables (koordinat, endpoint)     │
+│                                                      │
+│  2. Sinkronisasi data.json dengan ENV_KEYS           │
 │     - Hapus user yg tidak ada di ENV_KEYS            │
 │     - Tambah user baru (jika secret valid)           │
 │     - Exit jika tidak ada user valid sama sekali     │
 │                                                      │
-│  2. Cek apakah perlu reset hari baru                 │
+│  3. Cek apakah perlu reset hari baru                 │
 │     - Jika data.json.hari < hari ini → reset semua   │
 │                                                      │
-│  3. Loop tiap user → cek jadwal & status             │
-│     - Pagi (06:00-06:59): absen masuk                │
-│     - Sore (14:01-20:00): absen pulang               │
+│  4. Loop tiap user → cek jadwal & status             │
+│     - Pagi (06:00-06:59 WITA): absen masuk           │
+│     - Sore (14:30-20:00 WITA): absen pulang          │
 │     - Jika sudah absen (pagi=1/sore=1) → dilewati    │
 │                                                      │
-│  4. Playwright buka browser, login, klik presensi    │
+│  5. Playwright buka browser, login, klik presensi    │
 │     - Gagal akses endpoint → exit(1)                 │
 │     - Gagal login → exit(1)                          │
 │     - Berhasil → update data.json                    │
@@ -74,18 +77,47 @@ repo/
 
 ---
 
-## Jadwal Cron
+## Penjadwalan via cron-job.org
 
-Semua waktu di GitHub Actions menggunakan **UTC**. WITA = UTC+8, jadi dikurangi 8 jam.
+GitHub Actions tidak menjamin ketepatan waktu cron bawaan — bisa terlambat 15–60 menit. Oleh karena itu penjadwalan menggunakan **cron-job.org** yang men-trigger workflow via GitHub API dengan lebih konsisten.
 
-    Semua waktu dalam UTC (WITA = UTC+8, jadi kurangi 8 jam)
-    Cron jalan tiap hari, pengecekan hari libur & Minggu ditangani oleh script
-    - cron: '*/30 17-21 * * *' # 01:00-05:59 WITA tiap 30 menit - reset hari baru
-    - cron: '* 22 * * *'       # 06:00-06:59 WITA tiap menit    - presensi pagi
-    - cron: '* 6-11 * * *'     # 14:00-19:59 WITA tiap menit    - presensi sore
-    - cron: '0 12 * * *'       # 20:00 WITA                     - presensi sore akhir
+### Cara Setup cron-job.org
 
-> GitHub Actions tidak menjamin waktu eksekusi tepat. Bisa terlambat 1–5 menit, terutama saat load tinggi. Itulah mengapa script punya `jam_pagi` dan `jam_sore` acak — presensi tetap wajar meski ada keterlambatan ringan.
+**Langkah 1 — Buat GitHub Personal Access Token**
+
+1. Buka GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+2. Klik **Generate new token (classic)**
+3. Isi **Note** dan centang scope **`workflow`** saja
+4. Klik **Generate token** → copy tokennya (hanya muncul sekali)
+
+**Langkah 2 — Buat Cronjob di cron-job.org**
+
+Daftar di [https://cron-job.org](https://cron-job.org), lalu buat **3 cronjob** dengan konfigurasi berikut.
+
+Untuk semua cronjob, isi bagian **Advanced**:
+```
+Request method : POST
+Request headers:
+  Accept        : application/vnd.github+json
+  Authorization : Bearer <token_github>
+  Content-Type  : application/json
+Request body   : {"ref":"main"}
+```
+
+URL untuk semua cronjob:
+```
+https://api.github.com/repos/<username>/<nama-repo>/actions/workflows/presensi.yml/dispatches
+```
+
+Jadwal masing-masing cronjob (timezone: **Australia/Perth = GMT+8 = WITA**):
+
+| Cronjob | Menit | Jam | Tujuan |
+|---------|-------|-----|--------|
+| Reset Hari Baru | `*/30` | `1,2,3,4,5` | 01:00–05:59 WITA tiap 30 menit |
+| Presensi Pagi | `*/5` | `6` | 06:00–06:59 WITA tiap 5 menit |
+| Presensi Sore | `*/5` | `14,15,16,17,18,19` | 14:00–19:59 WITA tiap 5 menit |
+
+> Hari, Bulan, dan Weekday semua diisi `*` (setiap hari). Pengecekan hari libur dan Minggu dilakukan oleh script, bukan oleh cron.
 
 ---
 
@@ -97,18 +129,21 @@ Kredensial disimpan di **GitHub Secrets**, bukan di kode. Format tiap secret:
 username|password
 ```
 
-Contoh: `user1|pass1`
-
 ### Cara Menambahkan Secret
 
 1. Buka repo di GitHub
 2. Klik **Settings** → **Secrets and variables** → **Actions**
 3. Klik **New repository secret**
-4. Isi nama dan nilai sesuai tabel berikut:
+4. Isi nama dan nilai sesuai kebutuhan:
 
-| Secret Name | Nilai |
-|-------------|-------|
-| `USER1`     | `user1|pass1` |
+| Secret Name | Keterangan |
+|-------------|------------|
+| `USER1` | `username\|password` user pertama |
+| `USER2` | `username\|password` user kedua |
+| `BASE_LATITUDE` | Latitude koordinat patokan |
+| `BASE_LONGITUDE` | Longitude koordinat patokan |
+| `RADIUS` | Radius acak koordinat dalam meter, contoh: `50` |
+| `ENDPOINT_PRESENSI` | URL base aplikasi, contoh: `https://xxxx.com` |
 
 > `GITHUB_TOKEN` **tidak perlu diisi** — disediakan otomatis oleh GitHub setiap run.
 
@@ -119,7 +154,7 @@ Contoh: `user1|pass1`
 User dikelola melalui variabel `ENV_KEYS` di `autopresensi.js`:
 
 ```js
-const ENV_KEYS = ['USER1', 'USER2', 'USER3', 'USER4'];
+const ENV_KEYS = ['USER1', 'USER2'];
 ```
 
 Setiap kali script jalan, terjadi sinkronisasi otomatis antara `ENV_KEYS` dan `data.json`:
@@ -133,11 +168,11 @@ Setiap kali script jalan, terjadi sinkronisasi otomatis antara `ENV_KEYS` dan `d
 
 ### Cara Menambah User Baru
 
-1. Tambahkan secret baru di GitHub (misal `USER5`)
-2. Tambahkan `'USER5'` ke `ENV_KEYS` di `autopresensi.js`
-3. Tambahkan baris berikut di `presensi.yml` pada bagian `env:` job presensi:
+1. Tambahkan secret baru di GitHub (misal `USER3`)
+2. Tambahkan `'USER3'` ke `ENV_KEYS` di `autopresensi.js`
+3. Tambahkan baris berikut di `presensi.yml` pada bagian `env:`:
    ```yaml
-   USER5: ${{ secrets.USER5 }}
+   USER3: ${{ secrets.USER3 }}
    ```
 4. Commit & push — sinkronisasi berjalan otomatis di run berikutnya
 
@@ -154,17 +189,30 @@ Setiap user harus terdaftar di **ketiga tempat** berikut secara konsisten:
 
 | Tempat | Contoh |
 |--------|--------|
-| `ENV_KEYS` di `autopresensi.js` | `'USER5'` |
-| `env:` di `presensi.yml` | `USER5: ${{ secrets.USER5 }}` |
-| Secret di GitHub | `USER5` = `username\|password` |
+| `ENV_KEYS` di `autopresensi.js` | `'USER3'` |
+| `env:` di `presensi.yml` | `USER3: ${{ secrets.USER3 }}` |
+| Secret di GitHub | `USER3` = `username\|password` |
 
 Konsekuensi jika tidak sinkron:
 
 | Kondisi | Akibat |
 |---------|--------|
-| Ada di `ENV_KEYS`, tidak ada di `presensi.yml` | Secret tidak diteruskan ke script → `parseCredential` gagal → `exit(1)`, semua user setelahnya tidak diproses |
+| Ada di `ENV_KEYS`, tidak ada di `presensi.yml` | Secret tidak diteruskan → `exit(1)`, user setelahnya tidak diproses |
 | Ada di `presensi.yml`, tidak ada di `ENV_KEYS` | Secret diteruskan tapi tidak dipakai, user tidak diproses |
-| Ada di `ENV_KEYS` + `presensi.yml`, tidak ada secret di GitHub | Secret kosong → user dilewati saat sinkronisasi, log warning |
+| Ada di `ENV_KEYS` + `presensi.yml`, tidak ada secret di GitHub | Secret kosong → user dilewati, log warning |
+
+---
+
+## Mode Test Playwright
+
+Untuk mendiagnosis masalah tanpa mengeksekusi presensi, aktifkan test mode di `autopresensi.js`:
+
+```js
+const TEST_MODE = true;   // false = presensi normal
+const TEST_USER = 'USER1'; // user yang dipakai untuk test
+```
+
+Saat `TEST_MODE = true`, script hanya login dan menampilkan semua tombol yang ditemukan di halaman presensi — tidak mengubah `data.json` dan tidak mengeksekusi presensi apapun. Kembalikan ke `false` setelah selesai testing.
 
 ---
 
@@ -180,14 +228,22 @@ Konsekuensi jika tidak sinkron:
 }
 ```
 
-| Field      | Keterangan |
-|------------|------------|
-| `hari`     | Tanggal aktif. Jika berbeda dengan hari ini, semua user direset |
-| `envKey`   | Referensi ke secret GitHub (`USER1`, dst) |
-| `jam_pagi` | Jam acak untuk absen masuk (di-generate saat reset) |
-| `jam_sore` | Jam acak untuk absen pulang (di-generate saat reset) |
-| `pagi`     | `0` = belum absen masuk, `1` = sudah |
-| `sore`     | `0` = belum absen pulang, `1` = sudah |
+| Field | Keterangan |
+|-------|------------|
+| `hari` | Tanggal aktif. Jika berbeda dengan hari ini, semua user direset |
+| `envKey` | Referensi ke secret GitHub (`USER1`, dst) |
+| `jam_pagi` | Jam acak absen masuk, di-generate saat reset (06:01–06:37 WITA) |
+| `jam_sore` | Jam acak absen pulang, di-generate saat reset (bervariasi per hari) |
+| `pagi` | `0` = belum absen masuk, `1` = sudah |
+| `sore` | `0` = belum absen pulang, `1` = sudah |
+
+### Rentang jam_sore per Hari
+
+| Hari | Rentang |
+|------|---------|
+| Senin–Kamis | 14:30–16:59 WITA |
+| Jumat | 11:30–16:59 WITA |
+| Sabtu | 15:00–16:59 WITA |
 
 ---
 
@@ -195,13 +251,12 @@ Konsekuensi jika tidak sinkron:
 
 | Kondisi Error | Perilaku |
 |---------------|----------|
-| Secret tidak ada | User dilewati, warning di log, user lain tetap jalan |
+| Env variable tidak ada / bukan angka | `exit(1)`, workflow merah |
+| Secret user tidak ada | User dilewati, warning di log, user lain tetap jalan |
 | Tidak ada user valid sama sekali | `exit(1)`, workflow merah |
-| Endpoint tidak bisa diakses | `exit(1)`, workflow merah, cron ulang berikutnya |
-| Login gagal (username/password salah) | `exit(1)`, workflow merah, cron ulang berikutnya |
+| Endpoint tidak bisa diakses | `exit(1)`, workflow merah, cron-job.org ulang 5 menit berikutnya |
+| Login gagal | `exit(1)`, workflow merah, cron-job.org ulang 5 menit berikutnya |
 | Tombol presensi tidak ditemukan | Dilewati (kemungkinan sudah absen), lanjut user berikutnya |
-
-Jika workflow berstatus **merah**, script akan **otomatis dicoba ulang** di jadwal cron berikutnya (±5 menit) tanpa perlu intervensi manual.
 
 ---
 
@@ -219,4 +274,4 @@ Perbarui file ini setiap tahun sesuai kalender libur nasional. Jika file tidak a
 
 ## Menjalankan Manual
 
-Buka tab **Actions** di GitHub → pilih workflow **Auto Presensi** → klik **Run workflow**. Berguna untuk testing atau jika ingin trigger presensi di luar jadwal cron.
+Buka tab **Actions** di GitHub → pilih workflow **Auto Presensi** → klik **Run workflow**. Berguna untuk testing atau jika ingin trigger presensi di luar jadwal.
