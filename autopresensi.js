@@ -48,6 +48,13 @@ try {
     process.exit(1);
 }
 
+// --- Mode Test ---
+// Set TEST_MODE = true untuk menampilkan list tombol di halaman presensi
+// tanpa mengeksekusi presensi pagi/sore
+// Set TEST_USER = envKey user yang digunakan untuk test (harus ada di ENV_KEYS & Secrets)
+const TEST_MODE = true;
+const TEST_USER = 'USER1';
+
 // --- Daftar User ---
 // Tambah/hapus envKey di sini, script akan otomatis sinkronisasi ke data.json
 const ENV_KEYS = ['USER1', 'USER2'];
@@ -244,19 +251,7 @@ async function setAbsen(user, pOrS) {
             throw new Error(`Gagal membuka halaman presensi: ${e.message}`);
         }
         console.log(`${user.envKey}: Halaman presensi berhasil dibuka.`);
-        //pengecekan tombol yang ditemukan, untuk memastikan tidak terjadi perubahan pada halaman presensi yang menyebabkan tombol tidak bisa ditemukan
-        // Log semua button yang ada di halaman
-        const buttons = await page.$$eval('button', btns => 
-            btns.map(btn => ({
-                text: btn.innerText.trim(),
-                class: btn.className,
-                hidden: btn.hidden,
-                disabled: btn.disabled,
-                visible: btn.offsetParent !== null
-            }))
-        );
-        console.log(`${user.envKey}: Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
-        //end pengecekan
+
         if (pOrS === 'pagi') {
             await page.waitForTimeout(2000);
             await page.waitForLoadState('load');
@@ -308,6 +303,92 @@ async function setAbsen(user, pOrS) {
         // Lempar error ke atas agar executeData bisa exit(1)
         // Script berhenti, cron akan mengulang di jadwal berikutnya
         throw new Error(`[setAbsen] ${user.envKey}: ${error.message}`);
+    }
+}
+
+// --- Fungsi Test Playwright ---
+// Hanya login dan menampilkan list tombol di halaman presensi, tidak mengeksekusi apapun
+async function runTestMode() {
+    console.log(`[TEST MODE] Menggunakan user: ${TEST_USER}`);
+
+    let cred;
+    try {
+        cred = parseCredential(TEST_USER);
+    } catch (err) {
+        console.error(`[TEST MODE] ${err.message}`);
+        process.exit(1);
+    }
+
+    const { username, password } = cred;
+    let browser;
+
+    try {
+        browser = await chromium.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ]
+        });
+
+        const { latitude: newLatitude, longitude: newLongitude } =
+            generateRandomCoordinates(baseLatitude, baseLongitude, radius);
+
+        const context = await browser.newContext({
+            geolocation: { latitude: newLatitude, longitude: newLongitude, accuracy: 10 },
+            permissions: ['geolocation']
+        });
+
+        const page = await context.newPage();
+
+        // Buka halaman login
+        try {
+            await page.goto(`${endpointPresensi}/login`, { waitUntil: 'networkidle', timeout: 30000 });
+        } catch (e) {
+            throw new Error(`Endpoint tidak bisa diakses: ${e.message}`);
+        }
+
+        // Login
+        await page.fill('input[name="email"]',    username);
+        await page.fill('input[name="password"]', password);
+        await page.click('button[type="submit"]');
+        await page.waitForNavigation({ timeout: 15000 }).catch(() => {});
+        if (page.url().includes('/login')) {
+            throw new Error(`Login gagal. Periksa username/password secret ${TEST_USER}.`);
+        }
+        console.log(`[TEST MODE] Login berhasil.`);
+
+        // Buka halaman presensi
+        try {
+            await page.goto(`${endpointPresensi}/profile/presence`, { waitUntil: 'networkidle', timeout: 30000 });
+        } catch (e) {
+            throw new Error(`Gagal membuka halaman presensi: ${e.message}`);
+        }
+        console.log(`[TEST MODE] Halaman presensi berhasil dibuka.`);
+
+        // Ambil semua tombol di halaman
+        await page.waitForTimeout(2000);
+        const buttons = await page.$$eval('button', btns =>
+            btns.map(btn => ({
+                text    : btn.innerText.trim(),
+                class   : btn.className,
+                hidden  : btn.hidden,
+                disabled: btn.disabled,
+                visible : btn.offsetParent !== null
+            }))
+        );
+        console.log(`[TEST MODE] Buttons ditemukan:`, JSON.stringify(buttons, null, 2));
+
+        await browser.close();
+
+    } catch (error) {
+        if (browser) await browser.close().catch(() => {});
+        throw new Error(`[TEST MODE] ${error.message}`);
     }
 }
 
@@ -363,7 +444,8 @@ async function executeData() {
 }
 
 // --- Jalankan ---
-executeData().then(() => {
+const run = TEST_MODE ? runTestMode() : executeData();
+run.then(() => {
     console.log('Selesai.');
     process.exit(0);
 }).catch(err => {
