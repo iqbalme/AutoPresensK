@@ -5,8 +5,8 @@ on:
     # Semua waktu dalam UTC (WITA = UTC+8, jadi kurangi 8 jam)
     # Cron jalan tiap hari, pengecekan hari libur & Minggu ditangani oleh script
     - cron: '*/30 17-21 * * *' # 01:00-05:59 WITA tiap 30 menit - reset hari baru
-    - cron: '* 22 * * *'       # 06:00-06:59 WITA tiap menit    - presensi pagi
-    - cron: '* 6-11 * * *'     # 14:00-19:59 WITA tiap menit    - presensi sore
+    - cron: '*/5 22 * * *'     # 06:00-06:59 WITA tiap 5 menit  - presensi pagi
+    - cron: '*/5 6-11 * * *'   # 14:00-19:59 WITA tiap 5 menit  - presensi sore
     - cron: '0 12 * * *'       # 20:00 WITA                     - presensi sore akhir
   workflow_dispatch: # Bisa dijalankan manual dari tab Actions
 
