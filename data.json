@@ -1,19 +1,19 @@
 {
-  "hari": "2026-05-25",
+  "hari": "2026-05-26",
   "users": [
     {
       "envKey": "USER1",
-      "jam_pagi": "06:10",
-      "jam_sore": "16:43",
-      "pagi": 1,
-      "sore": 1
+      "jam_pagi": "06:21",
+      "jam_sore": "15:03",
+      "pagi": 0,
+      "sore": 0
     },
     {
       "envKey": "USER2",
-      "jam_pagi": "06:23",
-      "jam_sore": "16:36",
-      "pagi": 1,
-      "sore": 1
+      "jam_pagi": "06:34",
+      "jam_sore": "14:59",
+      "pagi": 0,
+      "sore": 0
     }
   ]
 }
