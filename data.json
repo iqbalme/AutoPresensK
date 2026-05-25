@@ -6,14 +6,14 @@
       "jam_pagi": "06:10",
       "jam_sore": "16:43",
       "pagi": 1,
-      "sore": 0
+      "sore": 1
     },
     {
       "envKey": "USER2",
       "jam_pagi": "06:23",
       "jam_sore": "16:36",
       "pagi": 1,
-      "sore": 0
+      "sore": 1
     }
   ]
 }
